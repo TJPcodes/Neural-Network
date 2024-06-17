@@ -52,14 +52,25 @@ class BaseNetwork:
         """
         return max(0, x)
 
+    def calculate_total_weights(self):
+        """
+        Calculates the total number of weights needed for the current network structure.
+
+        Returns:
+        - Total number of weights needed.
+        """
+        return sum(self.network_structure[i] * self.network_structure[i + 1]
+                   for i in range(len(self.network_structure) - 1))
+
     def init_weights(self):
         """
         Initializes weights for the neural network if not already initialized.
         """
         if not self.weight_array:
-            total_weights = sum(self.network_structure[i] * self.network_structure[i + 1]
-                                for i in range(len(self.network_structure) - 1))
+            total_weights = self.calculate_total_weights()
+            print(f"Initializing {total_weights} weights")
             self.weight_array = [random.uniform(0, 1) for _ in range(total_weights)]
+            print(f"Initialized weights: {self.weight_array}")
 
     def randomize_weights(self):
         """
@@ -85,15 +96,22 @@ class BaseNetwork:
                 self.network[-2][-1].append([0, random.uniform(0, 1)])
             self.network[-2][-1].append(0)
 
+        # Reinitialize weights if the network structure is modified
+        self.weight_array = []
+        self.init_weights()
+
     def init_layers(self):
         """
         Initializes the layers of the neural network with proper connections and weights.
         """
-        self.network.append(self.data)
-        self.network.append([])
+        self.network.append(self.data)  # Input layer
+        self.network.append([])  # Placeholder for the second layer
 
         for i in range(len(self.network_structure) - 1):
             self.network.append([])
+
+        print(f"Network structure: {self.network_structure}")
+        print(f"Weight array before initialization: {self.weight_array}")
 
         for i in range(1, len(self.network_structure)):
             nodes_layer = self.network_structure[i]
@@ -102,17 +120,34 @@ class BaseNetwork:
             for _ in range(nodes_layer):
                 self.network[i + 1].append([])
                 for _ in range(nodes_pre_layer):
+                    if len(self.weight_array) == 0:
+                        print(f"Weight array: {self.weight_array}")
+                        raise ValueError("Weight array is empty before all weights were assigned")
                     self.network[i + 1][-1].append([0, self.weight_array.pop(0)])
                 self.network[i + 1][-1].append(0)
+
+        print(f"Network after initialization: {self.network}")
+
+        if len(self.network[1]) == 0:
+            # Ensuring self.network[1] has at least as many elements as nodes in the first layer
+            for i in range(self.network_structure[0]):
+                self.network[1].append(0)
 
         for layer in range(2, len(self.network_structure) + 1):
             for node in range(self.network_structure[layer - 1]):
                 nodes_pre_layer = self.network_structure[layer - 2]
                 for edge in range(nodes_pre_layer):
                     if layer == 2:
-                        self.network[2][node][edge][0] = self.network[2][edge]
-                    if layer != 2:
-                        self.network[layer][node][edge][0] = self.network[layer - 1][edge][-1]
+                        # Check if the index is within bounds
+                        if edge < len(self.network[1]):
+                            self.network[2][node][edge][0] = self.network[1][edge]
+                        else:
+                            print(f"IndexError: Edge {edge} out of range for self.network[1]")
+                    else:
+                        if edge < len(self.network[layer - 1]):
+                            self.network[layer][node][edge][0] = self.network[layer - 1][edge][-1]
+                        else:
+                            print(f"IndexError: Edge {edge} out of range for self.network[layer - 1]")
                 self.network[layer][node][-1] = self.reLU(self.summation(self.network[layer][node], nodes_pre_layer))
 
     def return_weights(self):
@@ -146,7 +181,7 @@ def main(population, generation):
     - Scatter plot of generation vs. square difference between network output and expected output.
     """
     network_structure = [1, 7, 6, 4, 1]
-    best_difference = 1
+    best_difference = float('inf')
     generations = []
     differences = []
     best_weight_array = []
@@ -165,11 +200,11 @@ def main(population, generation):
             new_network.init_layers()
 
             difference = new_network.return_difference()
-            if abs(difference) < best_difference:
+            if abs(difference) < abs(best_difference):
                 best_difference = difference
                 best_weight_array = new_network.return_weights()
 
-    plt.style.use('seaborn-darkgrid')
+    plt.style.use('ggplot')  # Use a default Matplotlib style
     plt.scatter(generations, differences)
     plt.xlabel("Generation")
     plt.ylabel("Square Difference")
@@ -178,3 +213,4 @@ def main(population, generation):
 
 if __name__ == "__main__":
     main(1, 10)
+
